@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import getDb, { DatabaseConfigError } from "@/lib/db";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 export default async function DashboardPage() {
   const { userId: clerkId } = await auth();
@@ -34,7 +34,22 @@ export default async function DashboardPage() {
 
   try {
     const sql = getDb();
-    const users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+    let users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+
+    if (users.length === 0) {
+      const clerkUser = await currentUser();
+      if (clerkUser) {
+        const email = clerkUser.emailAddresses[0]?.emailAddress || "";
+        const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "Unknown User";
+        const avatar = clerkUser.imageUrl || "";
+
+        users = await sql`
+          INSERT INTO users (clerk_id, email, name, avatar)
+          VALUES (${clerkId}, ${email}, ${name}, ${avatar})
+          RETURNING *
+        `;
+      }
+    }
 
     if (users.length === 0) {
       return (
