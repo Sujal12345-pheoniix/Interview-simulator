@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import connectToDatabase from "@/lib/db";
-import Interview from "@/models/Interview";
-import Question from "@/models/Question";
-import Result from "@/models/Result";
-import User from "@/models/User";
+import getDb from "@/lib/db";
 import { generateInterviewReport } from "@/lib/ai/reportGenerator";
 
 export async function POST(req: Request) {
@@ -21,61 +17,96 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing interviewId" }, { status: 400 });
     }
 
-    await connectToDatabase();
-    
-    const user = await User.findOne({ clerkId });
-    if (!user) {
+    const sql = getDb();
+
+    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const userId = users[0].id;
 
-    const interview = await Interview.findById(interviewId).populate("questions");
-    if (!interview) {
+    const interviews = await sql`
+      SELECT * FROM interviews WHERE id = ${interviewId}
+    `;
+    if (interviews.length === 0) {
       return NextResponse.json({ error: "Interview not found" }, { status: 404 });
     }
+    const interview = interviews[0];
 
-    if (interview.userId.toString() !== user._id.toString()) {
+    if (interview.user_id !== userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Check if result already exists
-    const existingResult = await Result.findOne({ interviewId });
-    if (existingResult) {
-      return NextResponse.json(existingResult, { status: 200 });
+    const existingResults = await sql`
+      SELECT * FROM results WHERE interview_id = ${interviewId}
+    `;
+    if (existingResults.length > 0) {
+      if (interview.status !== "completed") {
+        await sql`
+          UPDATE interviews
+          SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+          WHERE id = ${interviewId}
+        `;
+      }
+      return NextResponse.json(existingResults[0], { status: 200 });
     }
 
-    const questions = await Question.find({ _id: { $in: interview.questions } });
-    
+    // Fetch ordered questions
+    const questionDocs = await sql`
+      SELECT * FROM questions
+      WHERE interview_id = ${interviewId}
+      ORDER BY order_index ASC
+    `;
+
+    if (questionDocs.length === 0) {
+      return NextResponse.json(
+        { error: "No questions found for this interview" },
+        { status: 400 }
+      );
+    }
+
     // Prepare data for report generation
-    const questionsData = questions.map(q => ({ text: q.text, category: q.category }));
-    const answersData = questions.map(q => ({
+    const questionsData = questionDocs.map((q: any) => ({
+      text: q.text,
+      category: q.category,
+    }));
+    const answersData = questionDocs.map((q: any) => ({
       score: q.score || 0,
       feedback: q.feedback || "",
-      strengths: [], // Since we didn't store these in Question model, we can default to empty OR update Question to store them later
-      weaknesses: []
+      strengths: Array.isArray(q.strengths) ? q.strengths : [],
+      weaknesses: Array.isArray(q.weaknesses) ? q.weaknesses : [],
     }));
 
     // Generate comprehensive report
     const reportData = await generateInterviewReport(questionsData, answersData);
 
     // Save result to DB
-    const result = await Result.create({
-      interviewId: interview._id,
-      userId: user._id,
-      overallScore: reportData.overallScore,
-      categoryScores: reportData.categoryScores,
-      strengths: reportData.strengths,
-      weaknesses: reportData.weaknesses,
-      recommendations: reportData.recommendations,
-      aiSummary: reportData.aiSummary,
-    });
+    const results = await sql`
+      INSERT INTO results (
+        interview_id, user_id, overall_score, category_scores,
+        strengths, weaknesses, recommendations, ai_summary
+      ) VALUES (
+        ${interviewId},
+        ${userId},
+        ${reportData.overallScore},
+        ${JSON.stringify(reportData.categoryScores)},
+        ${reportData.strengths},
+        ${reportData.weaknesses},
+        ${reportData.recommendations},
+        ${reportData.aiSummary}
+      )
+      RETURNING *
+    `;
 
     // Mark interview as completed
-    interview.status = "completed";
-    interview.completedAt = new Date();
-    await interview.save();
+    await sql`
+      UPDATE interviews
+      SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+      WHERE id = ${interviewId}
+    `;
 
-    return NextResponse.json(result, { status: 201 });
-    
+    return NextResponse.json(results[0], { status: 201 });
   } catch (error: any) {
     console.error("Complete Interview API Error:", error);
     return NextResponse.json(

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import connectToDatabase from "@/lib/db";
-import Question from "@/models/Question";
-import Interview from "@/models/Interview";
+import getDb from "@/lib/db";
 import { evaluateAnswer } from "@/lib/ai/answerEvaluator";
 
 export async function POST(req: Request) {
@@ -15,55 +13,102 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { questionId, userAnswer, codeSubmission } = body;
 
-    if (!questionId || !userAnswer) {
+    if (!questionId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    await connectToDatabase();
-    
+    const sql = getDb();
+
+    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    if (users.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    const userId = users[0].id;
+
     // Fetch question
-    const question = await Question.findById(questionId);
-    if (!question) {
+    const questions = await sql`
+      SELECT q.*, i.type, i.status, i.user_id as interview_user_id, i.id as interview_id_val
+      FROM questions q
+      JOIN interviews i ON i.id = q.interview_id
+      WHERE q.id = ${questionId}
+    `;
+    if (questions.length === 0) {
       return NextResponse.json({ error: "Question not found" }, { status: 404 });
     }
+    const question = questions[0];
 
-    // Verify interview ownership mapping (optional but good for security)
-    const interview = await Interview.findById(question.interviewId);
-    if (!interview) {
-      return NextResponse.json({ error: "Interview not found" }, { status: 404 });
-    }
-    
-    // 1. Setup the interview to be 'in_progress' if pending
-    if (interview.status === "pending") {
-      interview.status = "in_progress";
-      interview.startedAt = new Date();
-      await interview.save();
+    // Security: Verify interview ownership
+    if (question.interview_user_id !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 2. Evaluate answer using AI
+    const normalizedAnswer = typeof userAnswer === "string" ? userAnswer.trim() : "";
+    const normalizedCode = typeof codeSubmission === "string" ? codeSubmission.trim() : "";
+    const hasCode =
+      normalizedCode.length > 0 &&
+      normalizedCode !== "// Write your code here...";
+
+    if (question.type === "coding") {
+      if (!normalizedAnswer && !hasCode) {
+        return NextResponse.json(
+          { error: "Provide an explanation or code submission" },
+          { status: 400 }
+        );
+      }
+    } else if (!normalizedAnswer) {
+      return NextResponse.json(
+        { error: "Answer is required" },
+        { status: 400 }
+      );
+    }
+
+    // Start interview if still pending
+    if (question.status === "pending") {
+      await sql`
+        UPDATE interviews
+        SET status = 'in_progress', started_at = NOW(), updated_at = NOW()
+        WHERE id = ${question.interview_id_val}
+      `;
+    }
+
+    // Evaluate answer using AI
     const evaluation = await evaluateAnswer(
       question.text,
-      userAnswer,
-      question.expectedAnswer || ""
+      question.type === "coding" && hasCode
+        ? `${normalizedAnswer || "No written explanation provided."}\n\nSubmitted code:\n${normalizedCode}`
+        : normalizedAnswer,
+      question.expected_answer || ""
     );
 
-    // 3. Save evaluation to DB
-    question.userAnswer = userAnswer;
-    question.codeSubmission = codeSubmission;
-    question.score = evaluation.score;
-    question.feedback = evaluation.feedback;
-    // We can also store strengths/weaknesses if we expand the model, but for now we rely on the report phase
-    await question.save();
+    const safeScore = Number.isFinite(evaluation.score)
+      ? Math.min(10, Math.max(0, Math.round(evaluation.score)))
+      : 0;
+
+    const safeStrengths = Array.isArray(evaluation.strengths) ? evaluation.strengths : [];
+    const safeWeaknesses = Array.isArray(evaluation.weaknesses) ? evaluation.weaknesses : [];
+
+    // Save evaluation to DB
+    await sql`
+      UPDATE questions
+      SET
+        user_answer = ${normalizedAnswer},
+        code_submission = ${hasCode ? normalizedCode : null},
+        score = ${safeScore},
+        feedback = ${evaluation.feedback},
+        strengths = ${safeStrengths},
+        weaknesses = ${safeWeaknesses},
+        updated_at = NOW()
+      WHERE id = ${questionId}
+    `;
 
     return NextResponse.json({
       success: true,
-      score: evaluation.score,
+      score: safeScore,
       feedback: evaluation.feedback,
     });
-    
   } catch (error: any) {
     console.error("Evaluate Answer API Error:", error);
     return NextResponse.json(

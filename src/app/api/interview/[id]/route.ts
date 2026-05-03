@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import connectToDatabase from "@/lib/db";
-import Interview from "@/models/Interview";
-import Question from "@/models/Question";
-import User from "@/models/User";
+import getDb from "@/lib/db";
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ id: string }> } // Needs to be accessed asynchronously in Next 15+ App router context
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId: clerkId } = await auth();
@@ -17,30 +14,36 @@ export async function GET(
 
     const interviewId = (await params).id;
 
-    await connectToDatabase();
-    
-    const user = await User.findOne({ clerkId });
-    if (!user) {
+    const sql = getDb();
+
+    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const userId = users[0].id;
 
-    const interview = await Interview.findById(interviewId).populate("questions");
-    if (!interview) {
+    const interviews = await sql`
+      SELECT * FROM interviews WHERE id = ${interviewId}
+    `;
+    if (interviews.length === 0) {
       return NextResponse.json({ error: "Interview not found" }, { status: 404 });
     }
+    const interview = interviews[0];
 
-    if (interview.userId.toString() !== user._id.toString()) {
+    if (interview.user_id !== userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    
-    // We manually fetch questions and attach to ensure expected typing if populate isn't sufficient
-    const questions = await Question.find({ _id: { $in: interview.questions } }).select("-expectedAnswer"); // Dont send expected answer explicitly if we want to secure it, but it's okay for now.
 
-    const interviewData = interview.toObject();
-    interviewData.questions = questions; // replace populated array with full models
+    const questions = await sql`
+      SELECT
+        id, interview_id, text, category, difficulty,
+        user_answer, code_submission, score, feedback, strengths, weaknesses, order_index
+      FROM questions
+      WHERE interview_id = ${interviewId}
+      ORDER BY order_index ASC
+    `;
 
-    return NextResponse.json(interviewData, { status: 200 });
-    
+    return NextResponse.json({ ...interview, questions }, { status: 200 });
   } catch (error: any) {
     console.error("Fetch Interview API Error:", error);
     return NextResponse.json(

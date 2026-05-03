@@ -1,0 +1,24 @@
+
+> interview-simulator@0.1.0 build
+> next build
+
+▲ Next.js 16.2.2 (Turbopack)
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 11.7s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/api/interview/[id]/route.ts:40:5
+Type error: Type '(Document<unknown, {}, IQuestion, {}, DefaultSchemaOptions> & IQuestion & Required<{ _id: ObjectId; }> & { ...; } & { ...; })[]' is not assignable to type 'ObjectId[]'.
+  Type 'Document<unknown, {}, IQuestion, {}, DefaultSchemaOptions> & IQuestion & Required<{ _id: ObjectId; }> & { ...; } & { ...; }' is missing the following properties from type 'ObjectId': _bsontype, toHexString, getTimestamp, inspect, [bsonType]
+
+  [90m38 |[0m
+  [90m39 |[0m     [36mconst[0m interviewData = interview.toObject();
+[31m[1m>[0m [90m40 |[0m     interviewData.questions = questions; [90m// replace populated array with full models[0m
+  [90m   |[0m     [31m[1m^[0m
+  [90m41 |[0m
+  [90m42 |[0m     [36mreturn[0m [33mNextResponse[0m.json(interviewData, { status: [35m200[0m });
+  [90m43 |[0m     
+Next.js build worker exited with code: 1 and signal: null

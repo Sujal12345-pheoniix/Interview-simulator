@@ -1,42 +1,22 @@
-import mongoose from "mongoose";
+import { neon } from "@neondatabase/serverless";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "Please define the MONGODB_URI environment variable inside .env.local"
-  );
+export class DatabaseConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DatabaseConfigError";
+  }
 }
 
-let cached = (global as any).mongoose;
+function getDb() {
+  const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+  if (!DATABASE_URL) {
+    throw new DatabaseConfigError(
+      "Missing DATABASE_URL. Please define DATABASE_URL inside .env.local"
+    );
+  }
+
+  return neon(DATABASE_URL);
 }
 
-async function connectToDatabase() {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
-
-  return cached.conn;
-}
-
-export default connectToDatabase;
+export default getDb;

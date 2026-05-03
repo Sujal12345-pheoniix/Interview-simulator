@@ -28,7 +28,13 @@ export async function generateInterviewReport(
     categoryCount[q.category].total += ans.score;
     categoryCount[q.category].count += 1;
     
-    return `Q: ${q.text}\nScore: ${ans.score}/10\nStrengths: ${ans.strengths.join(", ")}\nWeaknesses: ${ans.weaknesses.join(", ")}`;
+    return [
+      `Q: ${q.text}`,
+      `Score: ${ans.score}/10`,
+      `Feedback: ${ans.feedback || "No feedback"}`,
+      `Strengths: ${ans.strengths.join(", ") || "N/A"}`,
+      `Weaknesses: ${ans.weaknesses.join(", ") || "N/A"}`,
+    ].join("\n");
   });
 
   const overallScore = Math.round((totalScore / Math.max(questions.length, 1)) * 10) / 10;
@@ -50,11 +56,16 @@ export async function generateInterviewReport(
     
     Return ONLY a JSON object matching this schema:
     {
-      "aiSummary": "A concise paragraph summarizing the candidate's overall performance.",
+      "aiSummary": "A concise paragraph summarizing the candidate's overall performance and trajectory.",
       "strengths": ["Top overall strength 1", "Top overall strength 2", "Top overall strength 3"],
-      "weaknesses": ["Primary area for improvement 1", "Primary area for improvement 2"],
-      "recommendations": ["Actionable advice 1", "Actionable advice 2", "Actionable advice 3"]
+      "weaknesses": ["Concrete recurring mistake 1", "Concrete recurring mistake 2", "Concrete recurring mistake 3"],
+      "recommendations": ["Actionable advice 1", "Actionable advice 2", "Actionable advice 3", "Actionable advice 4"]
     }
+
+    Rules:
+    - Weaknesses must explicitly mention a mistake pattern, not generic phrasing.
+    - Recommendations must be specific, measurable, and tied to weaknesses.
+    - Keep each bullet under 120 characters.
   `;
 
   try {
@@ -69,11 +80,27 @@ export async function generateInterviewReport(
     if (!content) throw new Error("No report generated");
 
     const parsed = JSON.parse(content);
+
+    const normalizeList = (value: unknown, fallback: string[]) => {
+      if (!Array.isArray(value)) return fallback;
+      return value
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean)
+        .slice(0, 6);
+    };
+
+    const aiSummary =
+      typeof parsed.aiSummary === "string" && parsed.aiSummary.trim()
+        ? parsed.aiSummary.trim()
+        : "You showed promise, with clear strengths and specific areas to improve next.";
     
     return {
       overallScore,
       categoryScores,
-      ...parsed
+      aiSummary,
+      strengths: normalizeList(parsed.strengths, ["Communicates ideas with reasonable clarity."]),
+      weaknesses: normalizeList(parsed.weaknesses, ["Needs deeper and more structured answer depth."]),
+      recommendations: normalizeList(parsed.recommendations, ["Practice two timed mock questions daily and review gaps immediately."]),
     };
   } catch (error) {
     console.error("Error generating report:", error);

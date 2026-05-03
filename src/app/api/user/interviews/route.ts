@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import connectToDatabase from "@/lib/db";
-import Interview from "@/models/Interview";
-import User from "@/models/User";
+import getDb from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -11,35 +9,43 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Optional: pagination
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "10");
     const page = parseInt(searchParams.get("page") || "1");
+    const offset = (page - 1) * limit;
 
-    await connectToDatabase();
-    
-    const user = await User.findOne({ clerkId });
-    if (!user) {
+    const sql = getDb();
+
+    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const userId = users[0].id;
 
-    const interviews = await Interview.find({ userId: user._id })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-      
-    const total = await Interview.countDocuments({ userId: user._id });
+    const interviews = await sql`
+      SELECT * FROM interviews
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    return NextResponse.json({
-      interviews,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit)
-      }
-    }, { status: 200 });
-    
+    const countResult = await sql`
+      SELECT COUNT(*) FROM interviews WHERE user_id = ${userId}
+    `;
+    const total = parseInt(countResult[0].count);
+
+    return NextResponse.json(
+      {
+        interviews,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit),
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     console.error("Fetch User Interviews API Error:", error);
     return NextResponse.json(

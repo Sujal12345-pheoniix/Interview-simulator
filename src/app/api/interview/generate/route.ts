@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import connectToDatabase from "@/lib/db";
-import Interview from "@/models/Interview";
-import Question from "@/models/Question";
-import User from "@/models/User";
+import getDb from "@/lib/db";
 import { generateQuestions } from "@/lib/ai/questionGenerator";
 import { parseResume } from "@/lib/ai/resumeParser";
 
@@ -24,13 +21,14 @@ export async function POST(req: Request) {
       );
     }
 
-    await connectToDatabase();
-    
-    // Find our mapped MongoDB user
-    const user = await User.findOne({ clerkId });
-    if (!user) {
+    const sql = getDb();
+
+    // Find our mapped PostgreSQL user
+    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+    const userId = users[0].id;
 
     // Optional: Parse resume to extract context
     let parsedResumeContext = "";
@@ -46,38 +44,27 @@ export async function POST(req: Request) {
       parsedResumeContext
     );
 
-    // 2. Create Interview document in DB
-    const interview = await Interview.create({
-      userId: user._id,
-      type,
-      role,
-      level,
-      status: "pending",
-      questions: [],
-    });
+    // 2. Create Interview record in DB
+    const interviews = await sql`
+      INSERT INTO interviews (user_id, type, role, level, status)
+      VALUES (${userId}, ${type}, ${role}, ${level}, 'pending')
+      RETURNING id
+    `;
+    const interviewId = interviews[0].id;
 
-    // 3. Create Question documents
-    const questionIds = [];
-    for (const q of generatedQuestions) {
-      const questionDoc = await Question.create({
-        interviewId: interview._id,
-        text: q.text,
-        category: q.category,
-        difficulty: q.difficulty,
-        expectedAnswer: q.expectedAnswer,
-      });
-      questionIds.push(questionDoc._id);
+    // 3. Create Question records
+    for (let i = 0; i < generatedQuestions.length; i++) {
+      const q = generatedQuestions[i];
+      await sql`
+        INSERT INTO questions (interview_id, text, category, difficulty, expected_answer, order_index)
+        VALUES (${interviewId}, ${q.text}, ${q.category}, ${q.difficulty}, ${q.expectedAnswer ?? null}, ${i})
+      `;
     }
 
-    // 4. Update Interview with question IDs
-    interview.questions = questionIds;
-    await interview.save();
-
-    return NextResponse.json({
-      interviewId: interview._id,
-      message: "Interview generated successfully",
-    }, { status: 201 });
-    
+    return NextResponse.json(
+      { interviewId, message: "Interview generated successfully" },
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error("Generate Interview API Error:", error);
     return NextResponse.json(
