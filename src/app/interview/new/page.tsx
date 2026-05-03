@@ -29,7 +29,7 @@ export default function NewInterviewPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to generate interview");
+        throw new Error(data.details || data.error || "Failed to generate interview");
       }
 
       const data = await res.json();

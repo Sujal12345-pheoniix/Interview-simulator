@@ -24,9 +24,24 @@ export async function POST(req: Request) {
     const sql = getDb();
 
     // Find our mapped PostgreSQL user
-    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    let users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
     if (users.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      // Auto-create user if they don't exist yet (e.g. bypassed dashboard)
+      const { currentUser } = await import("@clerk/nextjs/server");
+      const clerkUser = await currentUser();
+      if (clerkUser) {
+        const email = clerkUser.emailAddresses[0]?.emailAddress || "";
+        const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "Unknown User";
+        const avatar = clerkUser.imageUrl || "";
+
+        users = await sql`
+          INSERT INTO users (clerk_id, email, name, avatar)
+          VALUES (${clerkId}, ${email}, ${name}, ${avatar})
+          RETURNING id
+        `;
+      } else {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
     }
     const userId = users[0].id;
 

@@ -45,7 +45,7 @@ export async function generateQuestions(
 
     const parsed = JSON.parse(content);
     return parsed.questions;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating questions:", error);
     throw error;
   }
