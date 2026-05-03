@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CodeEditor } from "./CodeEditor";
+import { VoiceRecorder } from "./VoiceRecorder";
 import { Loader2 } from "lucide-react";
 
 interface QuestionCardProps {
@@ -61,7 +62,13 @@ export function QuestionCard({ question, type, onSubmit, isSubmitting = false }:
           <div className="space-y-4">
             <CodeEditor language="javascript" code={code} onChange={(v) => setCode(v || "")} />
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Time Complexity & Explanation (Optional)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-400">Time Complexity & Explanation (Optional)</label>
+                <VoiceRecorder 
+                  currentText={answer} 
+                  onTranscriptChange={setAnswer} 
+                />
+              </div>
               <Textarea
                 placeholder="Explain your approach..."
                 value={answer}
@@ -72,12 +79,21 @@ export function QuestionCard({ question, type, onSubmit, isSubmitting = false }:
           </div>
         )}
         {(type === "behavioral" || type === "technical") && (
-          <Textarea
-            placeholder="Structure your answer using the STAR method if applicable..."
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            className="min-h-[250px] bg-gray-900/50 border-gray-800 focus:border-indigo-500 text-base p-4"
-          />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-gray-400">Your Response</label>
+              <VoiceRecorder 
+                currentText={answer} 
+                onTranscriptChange={setAnswer} 
+              />
+            </div>
+            <Textarea
+              placeholder="Structure your answer using the STAR method if applicable..."
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              className="min-h-[250px] bg-gray-900/50 border-gray-800 focus:border-indigo-500 text-base p-4 transition-all duration-300"
+            />
+          </div>
         )}
       </CardContent>
       <CardFooter className="flex justify-end border-t border-gray-800 pt-6 mt-2">

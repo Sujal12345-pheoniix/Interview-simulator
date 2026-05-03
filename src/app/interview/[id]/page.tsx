@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { QuestionCard } from "@/components/interview/QuestionCard";
 import { Timer } from "@/components/interview/Timer";
+import { CameraProctor } from "@/components/interview/CameraProctor";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -167,6 +168,9 @@ export default function InterviewRoomPage() {
                 {timeWarning}
               </div>
             ) : null}
+            
+            <CameraProctor />
+            
             <QuestionCard 
               question={currentQuestion}
               type={interview.type}
