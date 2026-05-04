@@ -13,6 +13,13 @@ export const metadata: Metadata = {
   title: "Interview Simulator — Practice & Get Hired",
   description:
     "Realistic AI-powered technical, behavioral, and coding interview practice. Get scored, get feedback, get better.",
+  icons: {
+    icon: [
+      { url: '/logo.png', type: 'image/png', sizes: '256x256' },
+      { url: '/favicon.ico', type: 'image/x-icon' }
+    ],
+    apple: [{ url: '/logo.png', sizes: '180x180' }]
+  }
 };
 
 export default function RootLayout({
