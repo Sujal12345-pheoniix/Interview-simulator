@@ -101,7 +101,7 @@ export function CameraProctor() {
             <div 
               key={i}
               className="absolute w-1.5 h-1.5 bg-indigo-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"
-              style={{ left: \`\${pt.x}%\`, top: \`\${pt.y}%\` }}
+              style={{ left: `${pt.x}%`, top: `${pt.y}%` }}
             />
           ))}
 
