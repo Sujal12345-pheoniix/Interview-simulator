@@ -27,7 +27,7 @@ export function VoiceRecorder({ onTranscriptChange, currentText }: VoiceRecorder
 
   useEffect(() => {
     // Check for browser support
-    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
       setError("Speech recognition not supported in this browser.");
