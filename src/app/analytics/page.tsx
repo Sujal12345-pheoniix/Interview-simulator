@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { getAppAuth } from "@/lib/auth-wrapper";
 import { redirect } from "next/navigation";
 import getDb from "@/lib/db";
 import { ScoreHistory } from "@/components/charts/ScoreHistory";
@@ -6,14 +6,19 @@ import Link from "next/link";
 import { TrendingUp, Trophy, Target, Radar, ArrowLeft } from "lucide-react";
 
 export default async function AnalyticsPage() {
-  const { userId: clerkId } = await auth();
+  const { userId: unifiedUserId, clerkId } = await getAppAuth();
 
-  if (!clerkId) {
-    redirect("/sign-in");
+  if (!unifiedUserId && !clerkId) {
+    redirect("/login");
   }
 
   const sql = getDb();
-  const users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+  let users: any[] = [];
+  if (unifiedUserId) {
+    users = await sql`SELECT * FROM users WHERE id = ${unifiedUserId}`;
+  } else if (clerkId) {
+    users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+  }
 
   if (users.length === 0) {
     return (

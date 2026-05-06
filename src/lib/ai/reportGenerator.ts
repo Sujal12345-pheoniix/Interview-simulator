@@ -70,7 +70,7 @@ export async function generateInterviewReport(
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Using mini for the final aggregation step to save costs/time, or stick to 4o
+      model: "gpt-4o", 
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.4,

@@ -14,19 +14,24 @@ export async function generateQuestions(
   resumeText?: string
 ): Promise<GeneratedQuestion[]> {
   const prompt = `
-    You are an expert technical interviewer.
-    Generate 5 ${type} interview questions for a ${level} ${role} position.
-    ${resumeText ? `Tailor some questions based on this resume extract: ${resumeText}` : ""}
+    You are an elite recruiter from a top-tier tech company (like Google, Meta, or Netflix).
+    Generate 5 high-quality ${type} interview questions for a ${level} ${role} position.
     
-    Ensure questions test different aspects appropriately.
+    ${resumeText ? `CRITICAL: Carefully analyze this resume extract and tailor 2-3 questions specifically to the candidate's projects, stack, and experience level: ${resumeText}` : "Since no resume was provided, generate standard but challenging questions for this role."}
+    
+    GUIDELINES:
+    1. Technical: Focus on real-world problem solving, scalability, and deep understanding.
+    2. Behavioral: Use the STAR method format and focus on leadership, conflict resolution, and growth.
+    3. Coding: Focus on efficient algorithms, edge cases, and clean code principles.
+    
     Return ONLY a JSON object exactly matching this schema:
     {
       "questions": [
         {
-          "text": "The question text",
-          "category": "Broad category (e.g., 'System Design', 'Behavioral', 'Algorithms')",
+          "text": "The question text (detailed and professional)",
+          "category": "Broad category (e.g., 'System Design', 'Behavioral', 'Algorithms', 'Concurrency')",
           "difficulty": "easy", // must be "easy", "medium", or "hard"
-          "expectedAnswer": "Key points expected in a good answer"
+          "expectedAnswer": "Comprehensive list of key points, edge cases, and trade-offs the candidate should mention."
         }
       ]
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
-import { CREATE_TABLES_SQL } from "@/lib/schema";
+import { CREATE_TABLES_SQL, ALTER_TABLES_SQL } from "@/lib/schema";
 
 // This route initializes the database tables
 // Call it once: GET /api/migrate
@@ -15,6 +15,7 @@ export async function GET() {
     const { Client } = await import("pg");
     const client = new Client({ connectionString: DATABASE_URL });
     await client.connect();
+    await client.query(ALTER_TABLES_SQL);
     await client.query(CREATE_TABLES_SQL);
     await client.end();
 

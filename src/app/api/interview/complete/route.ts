@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { getAppAuth } from "@/lib/auth-wrapper";
 import getDb from "@/lib/db";
 import { generateInterviewReport } from "@/lib/ai/reportGenerator";
 
 export async function POST(req: Request) {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
+    const { userId: unifiedUserId, clerkId } = await getAppAuth();
+    if (!unifiedUserId && !clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -19,7 +19,13 @@ export async function POST(req: Request) {
 
     const sql = getDb();
 
-    const users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    let users: any[] = [];
+    if (unifiedUserId) {
+      users = await sql`SELECT id FROM users WHERE id = ${unifiedUserId}`;
+    } else if (clerkId) {
+      users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    }
+
     if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

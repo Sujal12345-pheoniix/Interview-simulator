@@ -12,12 +12,13 @@ import {
   AlertCircle
 } from "lucide-react";
 import getDb, { DatabaseConfigError } from "@/lib/db";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { getAppAuth } from "@/lib/auth-wrapper";
+import { currentUser } from "@clerk/nextjs/server";
 
 export default async function DashboardPage() {
-  const { userId: clerkId } = await auth();
+  const { userId: unifiedUserId, clerkId } = await getAppAuth();
 
-  if (!clerkId) {
+  if (!unifiedUserId && !clerkId) {
     return <div>Unauthorized</div>;
   }
 
@@ -34,9 +35,15 @@ export default async function DashboardPage() {
 
   try {
     const sql = getDb();
-    let users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+    let users: any[] = [];
+    
+    if (unifiedUserId) {
+      users = await sql`SELECT * FROM users WHERE id = ${unifiedUserId}`;
+    } else if (clerkId) {
+      users = await sql`SELECT * FROM users WHERE clerk_id = ${clerkId}`;
+    }
 
-    if (users.length === 0) {
+    if (users.length === 0 && clerkId) {
       const clerkUser = await currentUser();
       if (clerkUser) {
         const email = clerkUser.emailAddresses[0]?.emailAddress || "";
@@ -138,6 +145,13 @@ export default async function DashboardPage() {
                 <span className="hidden sm:inline">Start Practice</span>
               </button>
             </Link>
+            {!clerkId && unifiedUserId && (
+              <form action="/api/auth/logout" method="POST">
+                <button type="submit" className="h-9 px-4 text-sm font-medium text-gray-400 hover:text-white transition-all rounded-full hover:bg-white/5 border border-white/5">
+                  Logout
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </header>

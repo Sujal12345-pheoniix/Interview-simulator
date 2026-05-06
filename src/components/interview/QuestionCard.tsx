@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 
 interface QuestionCardProps {
   question: {
-    _id: string;
+    id: string;
     text: string;
     category: string;
     difficulty: string;

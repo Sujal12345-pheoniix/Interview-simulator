@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { getAppAuth } from "@/lib/auth-wrapper";
 import getDb from "@/lib/db";
 import { generateQuestions } from "@/lib/ai/questionGenerator";
 import { parseResume } from "@/lib/ai/resumeParser";
 
 export async function POST(req: Request) {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
+    const { userId: unifiedUserId, clerkId } = await getAppAuth();
+    if (!unifiedUserId && !clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -24,8 +24,14 @@ export async function POST(req: Request) {
     const sql = getDb();
 
     // Find our mapped PostgreSQL user
-    let users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
-    if (users.length === 0) {
+    let users: any[] = [];
+    if (unifiedUserId) {
+      users = await sql`SELECT id FROM users WHERE id = ${unifiedUserId}`;
+    } else if (clerkId) {
+      users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
+    }
+
+    if (users.length === 0 && clerkId) {
       // Auto-create user if they don't exist yet (e.g. bypassed dashboard)
       const { currentUser } = await import("@clerk/nextjs/server");
       const clerkUser = await currentUser();

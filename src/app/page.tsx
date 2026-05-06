@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Code2, Brain, BarChart3, LogIn, Trophy, Target, Zap, Rocket, CheckCircle2 } from "lucide-react";
-import { auth } from "@clerk/nextjs/server";
+import { ArrowRight, Code2, Brain, BarChart3, LogIn, Trophy, Target, Zap, Rocket, CheckCircle2, Mail } from "lucide-react";
+import { getAppAuth } from "@/lib/auth-wrapper";
 
 export default async function LandingPage() {
-  const { userId } = await auth();
+  const { userId } = await getAppAuth();
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-100 overflow-x-hidden selection:bg-indigo-500/30">
@@ -35,6 +35,12 @@ export default async function LandingPage() {
                   <button className="h-9 px-4 text-sm font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 rounded-full hover:bg-white/5">
                     <LogIn className="h-3.5 w-3.5" />
                     Sign in
+                  </button>
+                </Link>
+                <Link href="/login" className="hidden sm:block">
+                  <button className="h-9 px-4 text-sm font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 rounded-full hover:bg-white/5 border border-white/5">
+                    <Mail className="h-3.5 w-3.5" />
+                    Email Login
                   </button>
                 </Link>
                 <Link href="/sign-up">

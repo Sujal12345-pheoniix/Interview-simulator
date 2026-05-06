@@ -12,11 +12,21 @@ if (!dbUrl) {
 
 const client = new pg.Client({ connectionString: dbUrl });
 
+const ALTER_TABLES_SQL = `
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id TEXT UNIQUE;
+  ALTER TABLE users ALTER COLUMN clerk_id DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT 'clerk';
+  ALTER TABLE interviews ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+`;
+
 const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    clerk_id TEXT UNIQUE NOT NULL,
+    clerk_id TEXT UNIQUE,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT,
+    auth_provider TEXT NOT NULL DEFAULT 'clerk',
     name TEXT NOT NULL,
     avatar TEXT,
     resume TEXT,
@@ -31,6 +41,7 @@ const CREATE_TABLES_SQL = `
     role TEXT NOT NULL,
     level TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+    metadata JSONB DEFAULT '{}',
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -77,6 +88,7 @@ const CREATE_TABLES_SQL = `
 async function migrate() {
   try {
     await client.connect();
+    await client.query(ALTER_TABLES_SQL);
     await client.query(CREATE_TABLES_SQL);
     console.log("Migration successful");
   } catch (e) {
