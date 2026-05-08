@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate --schema=model/schema.prisma && next build",
     "start": "next start",
+    "postinstall": "prisma generate --schema=model/schema.prisma",
     "prisma:generate": "prisma generate --schema=model/schema.prisma",
     "prisma:migrate": "prisma migrate dev --name init --schema=model/schema.prisma",
     "prisma:studio": "prisma studio --schema=model/schema.prisma"
