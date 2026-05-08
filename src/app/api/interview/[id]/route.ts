@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAppAuth } from "@/lib/auth-wrapper";
-import getDb from "@/lib/db";
+import prisma from "@/lib/prisma";
 
 export async function GET(
   req: Request,
@@ -12,44 +12,29 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const interviewId = (await params).id;
+    const interviewId = Number((await params).id);
 
-    const sql = getDb();
+    // find interview and ensure ownership
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { questions: { orderBy: { orderIndex: 'asc' } } },
+    });
 
-    let users: any[] = [];
-    if (unifiedUserId) {
-      users = await sql`SELECT id FROM users WHERE id = ${unifiedUserId}`;
-    } else if (clerkId) {
-      users = await sql`SELECT id FROM users WHERE clerk_id = ${clerkId}`;
-    }
-
-    if (users.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-    const userId = users[0].id;
-
-    const interviews = await sql`
-      SELECT * FROM interviews WHERE id = ${interviewId}
-    `;
-    if (interviews.length === 0) {
+    if (!interview) {
       return NextResponse.json({ error: "Interview not found" }, { status: 404 });
     }
-    const interview = interviews[0];
 
-    if (interview.user_id !== userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const userId = unifiedUserId ?? null;
+    // If the authenticated principal is a Clerk user, get the mapped user id
+    if (!userId && clerkId) {
+      const user = await prisma.user.findFirst({ where: { clerkId } });
+      if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      if (interview.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    } else if (userId) {
+      if (interview.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const questions = await sql`
-      SELECT
-        id, interview_id, text, category, difficulty,
-        user_answer, code_submission, score, feedback, strengths, weaknesses, order_index
-      FROM questions
-      WHERE interview_id = ${interviewId}
-      ORDER BY order_index ASC
-    `;
-
-    return NextResponse.json({ ...interview, questions }, { status: 200 });
+    return NextResponse.json(interview, { status: 200 });
   } catch (error: any) {
     console.error("Fetch Interview API Error:", error);
     return NextResponse.json(

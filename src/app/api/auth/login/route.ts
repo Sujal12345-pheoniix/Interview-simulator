@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import getDb from "@/lib/db";
+import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/session";
 
@@ -11,18 +11,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    const sql = getDb();
-    const users = await sql`SELECT * FROM users WHERE email = ${email}`;
-    if (users.length === 0) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    const user = users[0];
-    if (!user.password_hash) {
+    if (!user.passwordHash) {
       return NextResponse.json({ error: "This account uses a different login method" }, { status: 400 });
     }
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }

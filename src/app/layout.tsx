@@ -15,10 +15,10 @@ export const metadata: Metadata = {
     "Realistic AI-powered technical, behavioral, and coding interview practice. Get scored, get feedback, get better.",
   icons: {
     icon: [
-      { url: '/logo.png', type: 'image/png', sizes: '256x256' },
+      { url: '/file.svg', type: 'image/svg+xml', sizes: '256x256' },
       { url: '/favicon.ico', type: 'image/x-icon' }
     ],
-    apple: [{ url: '/logo.png', sizes: '180x180' }]
+    apple: [{ url: '/file.svg', sizes: '180x180' }]
   }
 };
 
