@@ -1,131 +1,125 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Maximize, Minimize, AlertCircle, Scan, Activity } from "lucide-react";
+import { Minimize, Maximize, Scan, Activity, Eye, AlertCircle } from "lucide-react";
 
 export function CameraProctor() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState<string>("");
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [isAnalyzing] = useState(true);
-  const [trackingPoints, setTrackingPoints] = useState<{ x: number; y: number }[]>([]);
+  const [error, setError] = useState("");
+  const [minimized, setMinimized] = useState(true); // start minimized
+  const [pts, setPts] = useState<{ x: number; y: number }[]>([]);
+  const [attention, setAttention] = useState<"engaged" | "distracted" | "checking">("checking");
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    let animationId: number | undefined;
+    let timer: ReturnType<typeof setInterval>;
 
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" },
-          audio: false,
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-
-        const updateTracking = () => {
-          if (!isMinimized) {
-            const points: { x: number; y: number }[] = [];
-            for (let i = 0; i < 5; i++) {
-              points.push({ x: 30 + Math.random() * 40, y: 20 + Math.random() * 50 });
-            }
-            setTrackingPoints(points);
-          }
-          animationId = window.setTimeout(() => requestAnimationFrame(updateTracking), 500);
-        };
-
-        updateTracking();
-      } catch (err) {
-        console.error("Error accessing camera:", err);
-        setError("Camera access required for proctoring");
-      }
-    };
-
-    startCamera();
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false })
+      .then((s) => {
+        stream = s;
+        if (videoRef.current) videoRef.current.srcObject = s;
+        // Simulate attention tracking
+        setAttention("engaged");
+        timer = setInterval(() => {
+          setPts(Array.from({ length: 5 }, () => ({ x: 28 + Math.random() * 44, y: 18 + Math.random() * 52 })));
+          setAttention(Math.random() > 0.15 ? "engaged" : "distracted");
+        }, 1200);
+      })
+      .catch(() => setError("Camera access denied"));
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
-      if (animationId) window.clearTimeout(animationId);
+      stream?.getTracks().forEach((t) => t.stop());
+      clearInterval(timer);
     };
-  }, [isMinimized]);
+  }, []);
 
   if (error) {
     return (
-      <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-2 h-48">
-        <AlertCircle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-red-400">{error}</p>
-        <p className="text-xs text-gray-500">Please allow camera access to continue.</p>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/8 text-xs text-red-400">
+        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        Camera unavailable
       </div>
     );
   }
 
+  // Minimized pill
+  if (minimized) {
+    return (
+      <button
+        onClick={() => setMinimized(false)}
+        className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.07] bg-[#0e0e10] hover:bg-[#131315] transition-all text-xs text-gray-400 hover:text-gray-200"
+        title="Expand proctoring view"
+      >
+        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <Eye className="w-3.5 h-3.5" />
+        Proctoring active
+        <Maximize className="w-3 h-3 ml-1 opacity-50" />
+      </button>
+    );
+  }
+
+  // Expanded view
   return (
-    <div
-      className={`relative overflow-hidden transition-all duration-500 ease-in-out border border-gray-800 bg-black shadow-2xl ${
-        isMinimized ? "w-48 h-32 rounded-xl fixed bottom-6 right-6 z-50" : "w-full aspect-video rounded-xl mb-6"
-      }`}
-    >
-      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover mirror" style={{ transform: "scaleX(-1)" }} />
+    <div className="relative w-48 h-36 rounded-xl overflow-hidden border border-white/[0.08] bg-black shadow-2xl shadow-black/40">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="w-full h-full object-cover"
+        style={{ transform: "scaleX(-1)" }}
+      />
 
-      {!isMinimized && isAnalyzing && (
-        <>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-1/3 h-1/2 border-2 border-indigo-500/40 rounded-lg relative">
-              <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-500 rounded-tl"></div>
-              <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-500 rounded-tr"></div>
-              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-500 rounded-bl"></div>
-              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-500 rounded-br"></div>
-            </div>
-          </div>
-
-          {trackingPoints.map((pt, i) => (
-            <div
-              key={i}
-              className="absolute w-1.5 h-1.5 bg-indigo-400 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"
-              style={{ left: `${pt.x}%`, top: `${pt.y}%` }}
-            />
-          ))}
-
-          <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none">
-            <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-xs border border-white/10 text-indigo-400">
-              <Scan className="w-3 h-3" />
-              <span>Posture Analysis: Active</span>
-            </div>
-            <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm px-2 py-1 rounded text-xs border border-white/10 text-emerald-400">
-              <Activity className="w-3 h-3" />
-              <span>Eye Tracking: Engaged</span>
-            </div>
-          </div>
-
-          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.8)] animate-[scan_3s_ease-in-out_infinite]"></div>
-        </>
-      )}
-
-      <div className="absolute bottom-2 right-2 flex gap-2">
-        <button
-          onClick={() => setIsMinimized(!isMinimized)}
-          className="p-1.5 bg-black/50 hover:bg-black/80 rounded border border-white/10 text-gray-300 transition-colors"
-          title={isMinimized ? "Expand" : "Minimize"}
-        >
-          {isMinimized ? <Maximize className="w-4 h-4" /> : <Minimize className="w-4 h-4" />}
-        </button>
+      {/* Face tracking overlay */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Corner brackets */}
+        <div className="absolute inset-[20%]">
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-indigo-400 rounded-tl-sm" />
+          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-400 rounded-tr-sm" />
+          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-400 rounded-bl-sm" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-400 rounded-br-sm" />
+        </div>
+        {/* Tracking dots */}
+        {pts.map((p, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-indigo-400 rounded-full shadow-[0_0_6px_rgba(99,102,241,0.9)] transition-all duration-700"
+            style={{ left: `${p.x}%`, top: `${p.y}%` }}
+          />
+        ))}
+        {/* Scan line */}
+        <div
+          className="absolute left-0 right-0 h-px bg-indigo-500/60 shadow-[0_0_8px_rgba(99,102,241,0.6)]"
+          style={{ animation: "scan-line 3s ease-in-out infinite" }}
+        />
       </div>
 
-      <style jsx>{`
-        @keyframes scan {
-          0% { top: 0; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-      `}</style>
+      {/* Status badges */}
+      <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1">
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium backdrop-blur-sm border ${
+          attention === "engaged"
+            ? "bg-emerald-950/80 border-emerald-500/30 text-emerald-400"
+            : "bg-amber-950/80 border-amber-500/30 text-amber-400"
+        }`}>
+          <Activity className="w-2.5 h-2.5" />
+          {attention === "engaged" ? "Engaged" : "Distracted"}
+        </div>
+        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-black/60 border border-white/10 text-indigo-400 backdrop-blur-sm">
+          <Scan className="w-2.5 h-2.5" />
+          Tracking
+        </div>
+      </div>
+
+      {/* Minimize button */}
+      <button
+        onClick={() => setMinimized(true)}
+        className="absolute top-1.5 right-1.5 p-1 rounded bg-black/50 hover:bg-black/80 border border-white/10 text-gray-300 transition-colors"
+      >
+        <Minimize className="w-3 h-3" />
+      </button>
     </div>
   );
 }
 
 export default CameraProctor;
-
